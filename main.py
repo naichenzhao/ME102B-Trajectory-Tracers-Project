@@ -10,6 +10,30 @@ from Get_thread import *
 from Show_thread import *
 
 
+
+
+
+
+# +---------------------------------------+
+# |  General setup
+# +---------------------------------------+
+
+# setup video capture stream
+cv_stream = cv.VideoCapture(1)
+
+# setup threads for getting and displaying the video stream
+get_thread = Get_thread(cv_stream)
+get_thread.start()
+
+show_thread = Show_thread(get_thread.frame)
+show_thread.start()
+
+
+
+
+# +---------------------------------------+
+# |  Main Function
+# +---------------------------------------+
 def main():
 
     # define a range for the colour red
@@ -27,6 +51,7 @@ def main():
         
         # Update frames
         frame = get_thread.frame
+        frame_hsv = get_thread.frame_hsv
         show_thread.frame = frame
 
 
@@ -35,25 +60,27 @@ def main():
         # +---------------------------------------+
 
         # get red aspects of the frame
-        red_mask_base = cv.inRange(frame, red_lower, red_upper)
-        kernal = np.ones((5, 5), "uint8")
+        red_mask_base = cv.inRange(frame_hsv, red_lower, red_upper)
       
-        # get red colour
+        # Create red mask
+        kernal = np.ones((5, 5), "uint8")
         red_mask = cv.dilate(red_mask_base, kernal)
         res_red = cv.bitwise_and(frame, frame, mask = red_mask)
 
         contours, hierarchy = cv.findContours(red_mask, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
 
-        # add indicator on screen
-        for pic, contour in enumerate(contours):
-            area = cv.contourArea(contour)
-            if(area > 300):
-                x, y, w, h = cv.boundingRect(contour)
-                frame = cv.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
-                
-                cv.putText(frame, "Red", (x, y), cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255)) 
 
-        
+        if len(contours) != 0:
+            # get largest contour
+            cv.drawContours(frame, contours, -1, (0,255,0), 3)
+            c_largest = max(contours, key = cv.contourArea)
+
+            # draw rectangle around largest contour
+            if cv.contourArea(c_largest) > 300:
+                x, y, w, h = cv.boundingRect(c_largest)
+                frame = cv.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
+
+                
 
         show_fps(get_thread)
 
@@ -70,20 +97,9 @@ def show_fps(get_thread):
 
 if __name__ == '__main__':
     try:
-        # setup video capture stream
-        cv_stream = cv.VideoCapture(0)
-
-        # setup threads for getting and displaying the video stream
-        get_thread = Get_thread(cv_stream)
-        get_thread.start()
-
-        show_thread = Show_thread(get_thread.frame)
-        show_thread.start()
-
+        # Run main program
         main()
-
-
-    except KeyboardInterrupt:
+    finally:
         print('Program has been interrupted. Terminating all threads')
 
         # kill OpenCV windows and all threads
