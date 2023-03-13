@@ -89,6 +89,7 @@ def main_allthread():
                 if event.key == pygame.K_LEFT:
                     surface.fill(color_red)
                     pygame.display.flip()
+                    print("--------------- keyboard pressed ---------------")
 
                     # start counters
                     start_time = time.time_ns()
@@ -104,11 +105,10 @@ def main_allthread():
         result = find_colour(frame, frame_hsv, red_lower, red_upper)
         main_counter = main_counter + 1
 
-        if result and not lastresult:
+        if result:
             t_diff = time.time_ns() - start_time
-            print("time difference in ns:", t_diff)
-            print("cycle count is:", main_counter)
-            print()
+            print("time difference in ns:", t_diff, "cycle count is:", main_counter)
+            # start_time = time.time_ns()
 
             surface.fill(color_green)
             pygame.display.flip()
