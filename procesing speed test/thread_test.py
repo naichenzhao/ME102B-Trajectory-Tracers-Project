@@ -35,7 +35,12 @@ def main_allthread():
     # setup threads for getting and displaying the video stream
     timer = Timer(60, endTimer)
     global main_counter
+    global newframe_counter
+
+    newframe_counter = 0
     main_counter = 0
+    last_frame = np.zeros((480, 640, 3))
+    
 
     timer.start()
     while(True):    
@@ -48,9 +53,17 @@ def main_allthread():
             break
         
         # Update frames
+
+        newframe = get_thread.frame
+        if  not np.array_equal(newframe, last_frame):
+            newframe_counter = newframe_counter + 1
+            last_frame = newframe
+
+
         frame = get_thread.frame
         frame_hsv = get_thread.frame_hsv
         show_thread.frame = frame
+
 
         # +---------------------------------------+
         # | find colour
@@ -157,6 +170,7 @@ def show_fps(get_thread):
 def endTimer():
     print("Timer has ended")
     print("main thread counter:", main_counter)
+    print("newframe counter:", newframe_counter)
     print("get thread counter:", get_thread.counter)
     print("show thread counter:", show_thread.counter)
 

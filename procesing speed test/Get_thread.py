@@ -61,7 +61,7 @@ class Get_thread:
                 # update fps
                 self.fps = self.stream.get(cv.CAP_PROP_FPS)
                 self.counter = self.counter + 1
-                print("-------- new frame --------")
+                # print("-------- new frame --------")
 
 
     def stop(self):
