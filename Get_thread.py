@@ -22,12 +22,14 @@ class Get_thread:
 
         # set process to not end
         self.end_task = False
+
+        # counter for testing
+        self.counter = 0
     
 
     def start(self):
         ''' 
         start() initiates the thread to start capturing data
-
         '''
         Thread(target = self.get_frame).start()
         return self
@@ -41,7 +43,6 @@ class Get_thread:
         The process will keep running until:
             - Camera is no longer detected
             - Process is manually stopped
-
         '''
         # Keep going until process is stopped
         while not self.end_task:
@@ -57,11 +58,12 @@ class Get_thread:
                 
                 # update fps
                 self.fps = self.stream.get(cv.CAP_PROP_FPS)
+                self.counter = self.counter + 1
+                # print("-------- new frame --------")
 
 
     def stop(self):
         ''' 
         stop() ends the process and stops camera from grabbing any more frames
-
         '''
         self.end_task = True
