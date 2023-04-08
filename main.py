@@ -1,8 +1,6 @@
 # Import libraries
 import cv2 as cv
 import numpy as np
-from tqdm import tqdm
-from matplotlib import pyplot as plt
 from collections import *
 import time
 import sys
@@ -13,15 +11,26 @@ from scipy.optimize import linear_sum_assignment
 
 from threading import Timer
 
+
 # Import other classes
+from utils import *
 from Get_thread import *
 from Show_thread import *
 
 
 
-MIN_AREA = 1000
-DEQUE_SIZE = 10
-MIN_DATA_SIZE = 2
+MIN_AREA = 200
+DEQUE_SIZE = 8
+MIN_DATA_SIZE = 3
+
+
+# Get limit of the frame of calculation
+X_LIM = 600
+
+Y_MAX = 450
+Y_MIN = 30
+
+
 
 
 
@@ -54,8 +63,8 @@ def main():
     # timer = Timer(20, endTimer)
 
     # define a range for the colour red
-    red_lower = np.array([136, 87, 111], np.uint8)
-    red_upper = np.array([180, 255, 255], np.uint8)
+    red_lower = np.array([60, 170, 150], np.uint8)
+    red_upper = np.array([100, 255, 255], np.uint8)
 
 
     # Setup other variables
@@ -86,11 +95,7 @@ def main():
             show_thread.stop()
 
             print("[NOTICE]: Terminating all threads")
-            break
-
-        last_time = curr_time
-        curr_time = time.time() - ref_time
-        dt = curr_time - last_time
+            break 
 
 
         frame = np.copy(get_thread.frame)
@@ -100,22 +105,35 @@ def main():
         # [IMPORTANT] If the frames are the same, we skip this cycle of calculation
         if np.array_equal(get_thread.frame, last_frame):
             continue
+
+
+        # Show the x_lim cutoff point in orange
+        #    Any contous outside of this area will not be counted
+        frame = draw_outline(frame)
+
+
+        # Update time variables
+        last_time = curr_time
+        curr_time = time.time() - ref_time
+        dt = curr_time - last_time
+
+        # Update frame variables
         last_frame = get_thread.frame
         frame_hsv = get_thread.frame_hsv
         show_thread.frame = frame
             
-
+        # Update frame counter (Only for testing)
         newframe_counter = newframe_counter + 1
 
         # +---------------------------------------+
         # | find colour
         # +---------------------------------------+
         points = find_colour(frame, frame_hsv, red_lower, red_upper)
-
+        # print(curr_time, dt)
         # If we find a target on the screen
-        if points is not []:
+        if len(points) != 0:
             last_points = get_lp(frame_queues)
-            frame_queues = enqueue(points, last_points, frame_queues, curr_time, dt)
+            frame_queues = enqueue(points, last_points, frame_queues, curr_time, dt, DEQUE_SIZE)
 
             for p in points:
                 frame = cv.circle(frame, p, radius=10, color=(255, 0, 0), thickness=-1)
@@ -123,38 +141,66 @@ def main():
         else:
             # reset everything
             ref_time = time.time()
-            frame_queue = []
+            frame_queues = []
             
         if len(frame_queues) == 0:
             continue
 
+        targets = []
+
 
         for i in frame_queues:
             pos_data = read_queue(i)
+            # print(pos_data)
             x_vals = pos_data[:, 0]
             y_vals = pos_data[:, 1]
             t_vals = pos_data[:, 2]
 
-            if len(x_vals) >= MIN_DATA_SIZE:
+            if len(t_vals) >= MIN_DATA_SIZE:
                 zx = np.polyfit(t_vals, x_vals, 1)
                 zy = np.polyfit(t_vals, y_vals, 1)
                 px = np.poly1d(zx)
                 py = np.poly1d(zy)
 
-                t_points = np.linspace(t_vals[0], t_vals[0] + 0.1, 1000)
-                x_points = px(t_points)
-                y_points = py(t_points)
 
-                for i in range(len(x_points)):
-                    x = int(x_points[i])
-                    y = int(y_points[i])
-                    if x<0 or y<0 or x>1000 or y>1000:
-                        continue
-                    try:
-                        frame = cv.circle(frame, (x, y), radius=2, color=(255, 0, 0), thickness=-1)
-                    except Exception as e:
-                        print("[Error with set frame]")
-                        print(x, y)
+                # Print out the trajectories of all the balls
+                poly_draw(frame, px, py, t_vals[0], t_vals[0] + 10)
+
+                # solve for x-intercepts
+                inter_t = float(poly_solve(px, X_LIM))
+                inter_x = int(px(inter_t))
+                inter_y = int(py(inter_t))
+
+                # Save all the viable targets
+                if inter_t > curr_time and abs(inter_x) < 1000 and abs(inter_y) < 1000 :
+                    targets.append((inter_x, inter_y, round(inter_t, 5)))
+        
+
+        # Print out all the x-intercepts 
+        if len(targets) > 0:
+            targets_sorted = sorted(targets, key = lambda x:x[2])
+
+
+            # Print first to cross X_LIM
+            x_first = targets_sorted[0][0]
+            y_first = targets_sorted[0][1]
+
+            # First one to cross is highlited in large pink ball
+            frame = cv.circle(frame, (x_first, y_first), radius=12, color=(255, 0, 255), thickness=-1)
+
+            # Print out all the targets, sorted in terms of when they pass the intercept
+            print(targets_sorted)
+
+
+            # print all the other intercepts
+            for i in range(1, len(targets_sorted)):
+                x_curr = targets_sorted[i][0]
+                y_curr = targets_sorted[i][1]
+                # All others highlighted in smaller green balls
+                frame = cv.circle(frame, (x_curr, y_curr), radius=8, color=(255, 255, 0), thickness=-1)
+
+
+            
 
 
     cv.destroyAllWindows()
@@ -164,116 +210,6 @@ def main():
 
 
 
-def enqueue(points, last_points, frame_queues, currtime, dt):
-    # if no new points
-    if len(points) == 0:
-        return []
-
-    # If the queue is empty
-    if len(frame_queues) == 0:
-        for p in points:
-            frame_queues.append(deque([(p[0], p[1], round(currtime, 2))], maxlen=DEQUE_SIZE))
-        return frame_queues
-        
-    queue_data = []
-    for q in frame_queues:
-        queue_data.append(q[0])
-
-    # If a new point appears
-    if(len(points) > len(last_points)):
-        combos = list(combinations(points, len(last_points)))
-
-        curr_best, last_best = get_best_comb(combos, last_points)
-
-        # Set the previous deques
-        for i in range(len(last_best)):
-            index = last_points.index(last_best[i])
-            lasttime = round(frame_queues[index][-1][2], 2)
-
-            newpoint = (curr_best[i][0], curr_best[i][1], lasttime+dt)
-            frame_queues[index].append(newpoint)
-        
-        # add new elements to the array
-        diff =  list(set(points) - set(curr_best))
-        for i in diff:
-            frame_queues.append(deque([(i[0], i[1], round(currtime, 2))], maxlen=DEQUE_SIZE))
-        return frame_queues
-
-    # If we need to erase an old point 
-    elif len(points) < len(last_points) :
-        combos = list(combinations(last_points, len(points)))
-        last_best, curr_best = get_best_comb(combos, points)
-
-        new_queues = []
-
-        # Set dequeue items (without non-updated ones)
-        for i in range(len(last_best)):
-            index = last_points.index(last_best[i])
-            lasttime = round(frame_queues[index][-1][2], 2)
-
-            newpoint = (curr_best[i][0], curr_best[i][1], lasttime+dt)
-            frame_queues[index].append(newpoint)
-            new_queues.append(frame_queues[index])
-        
-        return new_queues
-
-    else:
-        last_best, curr_best = get_mapping(last_points, points)
-        for i in range(len(last_best)):
-            index = last_points.index(last_best[i])
-            lasttime = round(frame_queues[index][-1][2], 2)
-
-            newpoint = (curr_best[i][0], curr_best[i][1], lasttime+dt)
-            frame_queues[index].append(newpoint)
-        
-        return frame_queues
-        
-
-
-def get_best_comb(combos, points):
-    sums = []
-    points1 = []
-    points2 = []
-    for comb in combos:
-        point1, point2 = get_mapping(comb, points)
-        sums.append(get_cost(point1, point2))
-        points1.append(point1)
-        points2.append(point2)
-
-    index = sums.index(min(sums)) 
-    return list(points1[index]), list(points2[index])
-
-
-def get_cost(points1, points2):
-    return np.sum(cdist(points1, points2) * np.eye(len(points1)))
-
-
-def get_mapping(points1, points2):
-    C = cdist(points1, points2)
-    _, b = linear_sum_assignment(C)
-    new_points = []
-
-    for i in range(len(points2)):
-        new_points.append(points2[b[i]])
-
-    return points1, new_points
-
-def get_lp(dequq_arr):
-     return [(a[-1][0], a[-1][1]) for a in dequq_arr]
-
-
-
-def read_queue(d):
-    deque_length = len(list(d))
-    if deque_length == 0:
-       return None
-
-    framedata = np.zeros((deque_length, 3))
-
-    for i in range(deque_length):
-        framedata[i] = d[i]
-    
-    return framedata
 
 
 def find_colour(frame, frame_hsv, red_lower, red_upper):
@@ -286,18 +222,54 @@ def find_colour(frame, frame_hsv, red_lower, red_upper):
     morph = cv.dilate(c_mask_base, kernel1)
 
     contours, hierarchy = cv.findContours(morph, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-    cv.drawContours(frame, contours, -1, (0,255,0), 3)
+    # cv.drawContours(frame, contours, -1, (0,255,0), 3)
 
     points = []
 
     if len(contours) != 0:
         for curr_cnt in contours:
-            if cv.contourArea(curr_cnt) > MIN_AREA:
-                x, y, w, h = cv.boundingRect(curr_cnt)
+            x, y, w, h = cv.boundingRect(curr_cnt)
+            if cv.contourArea(curr_cnt) > MIN_AREA and  in_bounds(x, y):
+                
                 frame = cv.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
                 points.append((int(x + (w/2)), int( y + (h/2))))
     
     return points
+
+
+def in_bounds(x, y):
+    return (x < X_LIM) and (y > Y_MIN) and (y < Y_MAX)
+
+def poly_draw(frame, px, py, start, end, res=1000):
+    t_points = np.linspace(start, end, 1000)
+    x_points = px(t_points)
+    y_points = py(t_points)
+
+    for i in range(len(x_points)):
+        x = int(x_points[i])
+        y = int(y_points[i])
+        if x<0 or y<0 or x>1000 or y>1000:
+            continue
+        frame = cv.circle(frame, (x, y), radius=1, color=(255, 0, 0), thickness=-1)
+
+
+def poly_solve(poly, y):
+
+    return (poly - y).roots
+
+def draw_outline(frame):
+    
+    # Draw X_LIM for where the cup should be
+    y_vals = np.linspace(Y_MIN, Y_MAX, 400)
+    for i in range(len(y_vals)):
+        frame = cv.circle(frame, (X_LIM, int(y_vals[i])), radius=2, color=(0, 150, 255), thickness=-1)
+
+    # Draw Y_MAX and Y_MIN for outlines of the box
+    x_vals = np.linspace(0, X_LIM, 800)
+    for i in range(len(x_vals)):
+        frame = cv.circle(frame, (int(x_vals[i]), Y_MIN), radius=2, color=(0, 150, 255), thickness=-1)
+        frame = cv.circle(frame, (int(x_vals[i]), Y_MAX), radius=2, color=(0, 150, 255), thickness=-1)
+    return frame
 
 
 def endTimer():
