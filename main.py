@@ -95,7 +95,7 @@ def main():
     last_time = curr_time
 
     # initialize deque for  y intercepts
-    step_position_deque = deque([0, 0, 0, 0, 0])
+    step_position_deque = deque([0, 0, 0, 0, 0], maxlen=5)
 
 
     while (True):
