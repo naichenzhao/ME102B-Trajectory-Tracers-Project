@@ -12,7 +12,7 @@ from scipy.optimize import linear_sum_assignment
 # +---------------------------------------+
 
 # Interpolation function constants
-DEQUE_SIZE = 7
+DEQUE_SIZE = 8
 MIN_DATA_SIZE = 3
 
 # Minimum area for recognizing a blob
@@ -97,7 +97,7 @@ def in_bounds(x, y):
 # |
 # +----------------------------------------------------------------------------+
 
-def enqueue(points, last_points, frame_queues, currtime, dt, DEQUE_SIZE):
+def enqueue(points, last_points, frame_queues, currtime, dt):
     dec = 5
     # if no new points
     if len(points) == 0:

@@ -31,7 +31,9 @@ class Get_thread:
         ''' 
         start() initiates the thread to start capturing data
         '''
-        Thread(target = self.get_frame).start()
+        T = Thread(target = self.get_frame)
+        T.setDaemon(True) 
+        T.start()
         return self
     
 

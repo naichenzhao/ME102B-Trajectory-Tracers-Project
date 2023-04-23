@@ -23,7 +23,9 @@ class Show_thread:
         start() initiates the thread to start displaying frames
 
         '''
-        Thread(target=self.show_frame).start()
+        T = Thread(target=self.show_frame)
+        T.setDaemon(True)
+        T.start()
         return self
     
 
