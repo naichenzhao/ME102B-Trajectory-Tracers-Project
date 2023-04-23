@@ -6,9 +6,12 @@ import time
 import sys
 import traceback
 
+
 from scipy.signal import medfilt
 from collections import *
 from threading import Timer
+from threading import Thread
+import threading
 
 # Import other python files
 from utils import *
@@ -110,6 +113,10 @@ def main():
     frame_queues = []
     curr_time = []
 
+    frame_fire = True
+    frame_fire_CE = True
+    frame_fire_I = True
+
     while (True):
         # If either of the threads end, stop program
         if get_thread.end_task or show_thread.end_task:
@@ -119,34 +126,33 @@ def main():
             print("[NOTICE]: Terminating all threads")
             break
 
-
         # +---------------------------------------+
         # | Frame Fetch
         # +---------------------------------------+
         
-
         # [IMPORTANT] If the frames are the same, we skip this cycle of calculation
-        if np.array_equal(get_thread.frame, last_frame):
+        frame_fire = not np.array_equal(get_thread.frame, last_frame)
+
+        if not (frame_fire or frame_fire_CE or frame_fire_I):
             continue
 
         # Draw out the outline of what we can see
         #    Any contous outside of this area will not be counted
+        if frame_fire:
+            frame = np.copy(get_thread.frame)
+            frame = draw_outline(frame)
+            
+            # Update frame variables
+            last_frame = get_thread.frame
+            frame_hsv = get_thread.frame_hsv
         
-
-        # Update frame variables
-        last_frame = get_thread.frame
-        frame_hsv = get_thread.frame_hsv
-
-        frame_I = frame_CE.copy()
-        frame_CE = frame.copy()
-        frame = np.copy(get_thread.frame)
-        frame = draw_outline(frame)
+        
 
         # +---------------------------------------+
         # | Main Loop
         # +---------------------------------------+
 
-        # Set initial values
+        
         CR_thread.frame = frame
         CR_thread.frame_hsv = frame_hsv
 
@@ -157,33 +163,46 @@ def main():
         I_thread.frame_queues = frame_queues
         I_thread.curr_time = curr_time
 
-
-
         # Run functions
-        start_CR = CR_thread.start()
-        start_CE = CE_thread.start()
-        start_I = I_thread.start()
+        if frame_fire:
+            start_CR = CR_thread.start()
 
-        # Read new values
+        if frame_fire_CE:
+            start_CE = CE_thread.start()
+
+        if frame_fire_I:
+            start_I = I_thread.start()
+
+        # Wait for loops to finish
         start_CR.join()
         start_CE.join()
         start_I.join()
 
+        # Read Values
+        if frame_fire:
+            frame_CE = frame.copy()
+            points = CR_thread.points
+            cup = CR_thread.cup
 
-        points = CR_thread.points.copy()
-        cup = CR_thread.cup
+        if frame_fire_CE:
+            frame_I = frame_CE.copy()
+            frame_queues = CE_thread.frame_queues
+            curr_time = CE_thread.curr_time
 
-        frame_queues = CE_thread.frame_queues.copy()
-        curr_time = CE_thread.curr_time
-
-        targets = I_thread.targets.copy()
-
-        if len(targets) > 0:
-            draw_intercepts(targets, frame_I)
+        if frame_fire_I:
+            targets = I_thread.targets
+            if len(targets) > 0:
+                draw_intercepts(targets, frame_I)      
         
+        # Set the show frame
         show_thread.frame = frame_I
 
+        # Update pipeline frame values
+        frame_fire_I = frame_fire_CE
+        frame_fire_CE = frame_fire
 
+        
+        
         # +---------------------------------------+
         # | Data Filtering
         # +---------------------------------------+
