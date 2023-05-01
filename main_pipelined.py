@@ -224,24 +224,28 @@ def main():
     print("finished main")
 
 
-
-
-
 def send_data(cup, target):
     # writes step position_desired
-    if cup > 0: # Sends data every 500 ms
+    if cup > 0:  # Sends data every 500 ms
         # if abs(last_position - step_filtered[3]) > 50: # Sends data only if new posistion is at least 700 steps away from previous
         config = 0
-        if cup > target:
-            if abs(cup - target) > 50:
+        if cup < CUP_MIN:
+            config = 1
+        elif cup > CUP_MAX:
+            config = 4
+        elif cup > target:
+            if abs(cup - target) > 100:
+                config = 5
+            elif abs(cup - target) > 50:
                 config = 4
             elif abs(cup - target) > 5:
                 config = 3
             else:
                 config = 0
-
-        elif (cup < target):
-            if abs(target - cup) > 50:
+        elif cup < target:
+            if abs(target - cup) > 100:
+                config = 6
+            elif abs(target - cup) > 50:
                 config = 1
             elif abs(target - cup) > 5:
                 config = 2
@@ -253,7 +257,7 @@ def send_data(cup, target):
         write(config)
         print("c:", cup, "t:", target, "config:", config)
         return config
-                
+
         # last_position =  target
         # last_time_sent = time.time()
 

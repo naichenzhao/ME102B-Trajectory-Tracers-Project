@@ -19,16 +19,22 @@ MIN_DATA_SIZE = 3
 MIN_AREA = 100
 
 # Get limit of the frame of calculation
-X_MAX = 580
-X_MIN = 1
-Y_MAX = 479
-Y_MIN = 1
+X_MAX = 495
+X_MIN = 45
+Y_MAX = 390
+Y_MIN = 70
 
 # Start sending data once ball is past a certain point
-SEND_START = 10
+SEND_START = 55
 
 # Cup offset
-CUP_OFFSET = 42
+CUP_OFFSET = 35
+
+# Find these values by printing cup values at extremes
+CUP_MAX = 360
+CUP_MIN = 105
+
+CENTER = (Y_MAX - Y_MIN)/2 + Y_MIN
 
 
 # +----------------------------------------------------------------------------+
